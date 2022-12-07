@@ -1,0 +1,90 @@
+import SoapySDR
+from SoapySDR import * #SOAPY_SDR_ constants
+import numpy as np
+import time
+import os
+
+
+import numpy as no
+import matplotlib.pyplot as plt
+import scipy.fftpack
+from numpy import array
+
+#=======================
+chan=0
+ant='LNAL'
+gain=15
+numSamps = 4096
+burstSize = 512
+#=======================
+
+#enumerate devices
+results = SoapySDR.Device.enumerate()
+for result in results: print(result)
+
+#create device instance
+#args can be user defined or from the enumeration result
+args = dict(driver="xtrx")
+sdr = SoapySDR.Device(args)
+
+#query device info
+print (sdr.listAntennas(SOAPY_SDR_RX, chan))
+
+print "============================================="
+
+sdr.setSampleRate(SOAPY_SDR_RX, chan, 40e6)
+print("Actual Rx Rate %f Msps"%(sdr.getSampleRate(SOAPY_SDR_RX, chan)/1e6))
+
+sdr.setFrequency(SOAPY_SDR_RX, chan, 800e6)
+print("Actual Rx Freq %f MHz"%(sdr.getFrequency(SOAPY_SDR_RX, chan)/1e6))
+
+sdr.setAntenna(SOAPY_SDR_RX,chan,ant)
+print("Antenna on Channel %i is %s"%(chan,sdr.getAntenna(SOAPY_SDR_RX,chan)))
+
+sdr.setGain(SOAPY_SDR_RX,chan,gain)
+print("Actual Rx Gain %f "%(sdr.getGain(SOAPY_SDR_RX, chan)))
+
+sdr.setBandwidth(SOAPY_SDR_RX, chan, 40e6)
+print("Actual Rx BW MHz %f "%(sdr.getBandwidth(SOAPY_SDR_RX, chan)/1e6))
+
+print "============================================="
+
+#create rx stream
+rxStream = sdr.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32, [chan])
+
+#let things settle
+time.sleep(1)
+
+#start streaming
+sdr.activateStream(rxStream, 0, 0, numSamps)
+
+#create a re-usable buffer for rx samples
+rxBuff = np.array([0]*burstSize, np.complex64)
+
+#receive some samples (first samples have the zero)
+sr = sdr.readStream(rxStream, [rxBuff], 512)
+print rxBuff
+#second capture
+sr = sdr.readStream(rxStream, [rxBuff], 512)
+
+
+#cleanup streams
+print("Cleanup streams")
+sdr.deactivateStream(rxStream) #stop streaming
+sdr.closeStream(rxStream)
+
+#print data
+print rxBuff
+n = len(rxBuff)
+print n
+
+#FFT
+y = scipy.fftpack.fft(rxBuff)
+yf = np.abs(scipy.fftpack.fftshift(y))
+yf = 10*np.log10(yf)
+xf = np.linspace(0.0, 1.0, n/2)
+
+#plot FFT
+fig, ax = plt.subplots()
+ax.plot(yf)
+plt.show()
